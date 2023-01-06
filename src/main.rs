@@ -1,14 +1,19 @@
-use std::{env,io::BufReader,io::prelude::*,fs};
+use clap::{Command, Arg};
+use std::{io::BufReader,io::prelude::*,fs};
 use itertools::Itertools;
 
-//TODO maybe i should use clap for rust, seems p easy
 //TODO I need to implement for gz files, look at flate2
 //? maybe check out doing a --dryrun flag that uses the counter variable 
 
 fn main() {
-  let args: Vec<String> = env::args().collect();
-  let infile = fs::File::open(&args[1]).unwrap();
-  let threshold:f32 = args[2].parse::<f32>().unwrap_or(0.0);
+  let args = parse_args();
+  let threshold:f32 = *args.get_one::<f32>("THRESHOLD").expect("No threshold provided");
+  //println!("{:?}",threshold);
+  let fpath = match args.contains_id("INPUT"){
+    true => args.get_one::<String>("INPUT").unwrap(),
+    false => args.get_one::<String>("POS").unwrap()
+  };
+  let infile = fs::File::open(fpath).unwrap();
   let reader = BufReader::new(infile);
   //let mut counter:usize = 0;
   for (chunk,lines) in reader.lines().chunks(4).into_iter().enumerate(){
@@ -39,4 +44,13 @@ fn convert_to_phred(qual:String) -> f32{
         sum += q as usize;
     }
     (sum as f32 / qual.chars().count() as f32) - 33.0
+}
+
+fn parse_args() -> clap::ArgMatches{
+  Command::new("FastQ Sorter")
+      .about("Sorts FastQ file by PHRED Score")
+      .arg(Arg::new("INPUT").short('i').long("input").help("Input fastq file"))
+      .arg(Arg::new("THRESHOLD").short('t').long("thresh").help("PHRED cutoff").value_parser(clap::value_parser!(f32)))
+      .arg(Arg::new("POS").required_unless_present("INPUT").help("Catches extra args"))
+      .get_matches()
 }
